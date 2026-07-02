@@ -96,6 +96,8 @@ class UIStatusLogHandler(logging.Handler):
 class DynamicAIClient:
     def complete(self, system_prompt: str, user_message: str) -> str:
         api_key = os.environ.get("OPENAI_API_KEY", "")
+        if api_key in ("sk-your-key-here", "your-actual-api-key-here"):
+            api_key = ""
         model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
         _ui_status["current_model"] = model
         

@@ -116,6 +116,8 @@ class OpenAIClient:
             ) from exc
 
         resolved_key = api_key or os.environ.get("OPENAI_API_KEY", "")
+        if resolved_key in ("sk-your-key-here", "your-actual-api-key-here"):
+            resolved_key = ""
         if not resolved_key:
             raise ConfigurationError(
                 "OpenAI API key is not set. "
