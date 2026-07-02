@@ -1,0 +1,1 @@
+# GoblinOS research worker package

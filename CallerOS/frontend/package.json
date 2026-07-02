@@ -1,0 +1,12 @@
+{
+  "name": "goblin-os-ui",
+  "version": "1.0.0",
+  "description": "GoblinOS Desktop Workspace UI",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "dependencies": {
+    "electron": "^31.0.0"
+  }
+}
