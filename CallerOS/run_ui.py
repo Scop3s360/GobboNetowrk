@@ -47,7 +47,7 @@ def get_assets_dir() -> Path:
 
 def get_env_path() -> Path:
     exe_dir = get_exe_dir()
-    if (exe_dir / "config" / ".env").is_file():
+    if (exe_dir / "config").is_dir():
         return exe_dir / "config" / ".env"
     return exe_dir / ".env"
 

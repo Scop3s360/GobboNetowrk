@@ -29,9 +29,9 @@ def get_base_dir() -> Path:
         # Package root containing CallerOS.exe
         # E.g. Release/
         # Check if config directory exists around the executable
-        # E.g. Release/config/.env
+        # E.g. Release/config/
         exe_dir = Path(sys.executable).parent
-        if (exe_dir / "config" / ".env").is_file():
+        if (exe_dir / "config").is_dir():
             return exe_dir / "config"
         return exe_dir
     return Path(__file__).parent.parent
@@ -45,7 +45,7 @@ def get_exe_dir() -> Path:
 try:
     from dotenv import load_dotenv  # type: ignore
 
-    load_dotenv(dotenv_path=get_base_dir() / ".env", override=False)
+    load_dotenv(dotenv_path=get_base_dir() / ".env", override=True)
 except ImportError:
     # python-dotenv is optional.  Without it, only real env vars are used.
     pass
