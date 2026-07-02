@@ -64,17 +64,26 @@ To run in terminal-only mode:
 python main.py
 ```
 
-### Option C: The Electron Desktop Wrapper (Optional)
-If you have Node.js installed:
-```bash
-cd frontend
-npm install
-npm start
-```
+### Option C: Standalone Windows Desktop App (V1.0.1 Release)
+A complete, packaged version is generated under the `Release/` directory when running the build script:
+1. Double-click `CallerOS.exe` inside the `Release/` directory.
+2. The application will start its own local backend automatically in an invisible background process, and load the React workspace inside a native Edge WebView2 frame.
+3. No terminal, Python, node, or web browser installation is required to distribute or run this bundle.
 
 ---
 
-## 4. Running the Tests
+## 4. Build & Packaging Automation (Windows)
+
+To clean, test, and build a standalone portable executable `Release/CallerOS.exe` automatically:
+1. Run the build batch file:
+   ```cmd
+   build.bat
+   ```
+2. The script will automatically clean previous builds, verify requirements, execute all 315 tests, compile the executable, and assemble the portable `Release/` folder.
+
+---
+
+## 5. Running the Tests
 
 To execute the complete unit and integration test suite (315 tests):
 ```bash
@@ -83,8 +92,10 @@ pytest
 
 ---
 
-## 5. Troubleshooting
+## 6. Troubleshooting
 
 - **Missing `openai` module**: Ensure you activated the virtual environment and ran `pip install -r requirements.txt`.
 - **Database Connection / Constraint Errors**: Delete the local SQLite file located at `logs/caller_os_memory.db` to allow the migration engine to rebuild the database schema automatically.
 - **API Key not working**: Set your API key in the UI settings screen, or ensure the environment variable `OPENAI_API_KEY` is exported. Masked values (like `***` or `sk-123...cdef`) will be automatically ignored when updating settings to prevent overwriting active credentials.
+- **WebView2 not loading**: On older Windows systems, WebView2 Runtime might not be installed. Modern Windows 10/11 comes with it pre-installed. If missing, it can be downloaded from Microsoft's site.
+

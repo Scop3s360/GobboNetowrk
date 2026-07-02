@@ -69,7 +69,7 @@ function App() {
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const res = await fetch("http://localhost:8080/api/status");
+        const res = await fetch("/api/status");
         if (res.ok) {
           const data = await res.json();
           setStatus(data);
@@ -179,7 +179,7 @@ function ChatScreen({ status }) {
     setBackendError("");
 
     try {
-      const res = await fetch("http://localhost:8080/api/chat", {
+      const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: userMsg })
@@ -275,7 +275,7 @@ function LogsScreen() {
 
   const fetchLogs = async () => {
     try {
-      const res = await fetch("http://localhost:8080/api/logs");
+      const res = await fetch("/api/logs");
       if (res.ok) {
         const data = await res.json();
         setLogs(data);
@@ -374,7 +374,7 @@ function SettingsScreen({ settings, setSettings }) {
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const res = await fetch("http://localhost:8080/api/settings");
+        const res = await fetch("/api/settings");
         if (res.ok) {
           const data = await res.json();
           setSettings(data);
@@ -393,7 +393,7 @@ function SettingsScreen({ settings, setSettings }) {
     e.preventDefault();
     setSaveStatus("Saving...");
     try {
-      const res = await fetch("http://localhost:8080/api/settings", {
+      const res = await fetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
