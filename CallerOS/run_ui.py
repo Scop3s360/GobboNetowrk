@@ -99,11 +99,15 @@ class DynamicAIClient:
         model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
         _ui_status["current_model"] = model
         
+        log.info(f"DynamicAIClient: Creating request for model={model}")
+        
         if not api_key:
+            log.warning("DynamicAIClient: API key is missing")
             raise AIClientError("OpenAI API key is missing. Please set it in the Settings screen.")
 
         try:
             import openai
+            log.info("DynamicAIClient: Sending HTTP request to OpenAI API...")
             client = openai.OpenAI(api_key=api_key)
             response = client.chat.completions.create(
                 model=model,
@@ -112,10 +116,15 @@ class DynamicAIClient:
                     {"role": "user", "content": user_message},
                 ],
             )
-            return response.choices[0].message.content or ""
+            log.info("DynamicAIClient: HTTP response received successfully")
+            content = response.choices[0].message.content or ""
+            log.info(f"DynamicAIClient: Parsed response content length={len(content)} chars")
+            return content
         except ImportError:
+            log.error("DynamicAIClient: The 'openai' package is not installed")
             raise AIClientError("The 'openai' package is not installed.")
         except Exception as exc:
+            log.error(f"DynamicAIClient: Request failed with exception: {exc}")
             raise AIClientError(str(exc))
 
 

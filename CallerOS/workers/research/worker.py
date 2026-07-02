@@ -161,12 +161,12 @@ class ResearchWorker(BaseWorker):
         user_message = build_user_prompt(research_request)
 
         # 3. Call AI client.
-        raw_response = self._call_ai(request.request_id, user_message)
+        raw_response, error_msg = self._call_ai(request.request_id, user_message)
         if raw_response is None:
             return WorkerResponse(
                 request_id=request.request_id,
                 success=False,
-                error="AI client returned no response.",
+                error=error_msg or "AI client returned no response.",
             )
 
         # 4. Parse the response.
@@ -227,28 +227,26 @@ class ResearchWorker(BaseWorker):
 
         return payload
 
-    def _call_ai(self, request_id: str, user_message: str) -> str | None:
+    def _call_ai(self, request_id: str, user_message: str) -> tuple[str | None, str | None]:
         """
-        Call the AI client and return the response text.
-
-        Returns None on any client error so _execute() can build a
-        clean failure response rather than raising.
+        Call the AI client and return (response_text, error_message).
         """
         try:
-            return self._ai_client.complete(
+            res = self._ai_client.complete(
                 system_prompt=SYSTEM_PROMPT,
                 user_message=user_message,
             )
+            return res, None
         except AIClientError as exc:
             log.error(
                 "ResearchWorker: AI client error  request_id=%s  error=%s",
                 request_id, exc,
             )
-            return None
+            return None, str(exc)
         except Exception as exc:  # noqa: BLE001
             # Catch unexpected errors (e.g. network issues not wrapped by SDK).
             log.error(
                 "ResearchWorker: unexpected AI error  request_id=%s  error=%s",
                 request_id, exc, exc_info=True,
             )
-            return None
+            return None, f"Unexpected AI error: {exc}"
