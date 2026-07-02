@@ -1,0 +1,7 @@
+{
+  "name": "example-plugin",
+  "version": "1.0.0",
+  "author": "James",
+  "description": "A fully functional example plugin demonstrating initialization and shutdown hooks.",
+  "entry": "plugin.py"
+}

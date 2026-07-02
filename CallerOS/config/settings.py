@@ -19,16 +19,33 @@ Architectural decision:
 """
 
 import os
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-
 from core.exceptions import ConfigurationError
+
+def get_base_dir() -> Path:
+    if getattr(sys, 'frozen', False):
+        # Package root containing CallerOS.exe
+        # E.g. Release/
+        # Check if config directory exists around the executable
+        # E.g. Release/config/.env
+        exe_dir = Path(sys.executable).parent
+        if (exe_dir / "config" / ".env").is_file():
+            return exe_dir / "config"
+        return exe_dir
+    return Path(__file__).parent.parent
+
+def get_exe_dir() -> Path:
+    if getattr(sys, 'frozen', False):
+        return Path(sys.executable).parent
+    return Path(__file__).parent.parent
 
 # Load .env file if present (no error if missing — environment vars win).
 try:
     from dotenv import load_dotenv  # type: ignore
 
-    load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env", override=False)
+    load_dotenv(dotenv_path=get_base_dir() / ".env", override=False)
 except ImportError:
     # python-dotenv is optional.  Without it, only real env vars are used.
     pass
@@ -95,6 +112,8 @@ class Settings:
             )
 
         log_dir = Path(log_dir_raw)
+        if not log_dir.is_absolute():
+            log_dir = (get_exe_dir() / log_dir).resolve()
 
         return cls(
             app_name=app_name,

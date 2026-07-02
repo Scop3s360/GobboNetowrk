@@ -35,6 +35,22 @@ from workers.research.worker import ResearchWorker
 
 log = logging.getLogger(__name__)
 
+def get_exe_dir() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).parent
+    return Path(__file__).parent
+
+def get_assets_dir() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys._MEIPASS)
+    return Path(__file__).parent
+
+def get_env_path() -> Path:
+    exe_dir = get_exe_dir()
+    if (exe_dir / "config" / ".env").is_file():
+        return exe_dir / "config" / ".env"
+    return exe_dir / ".env"
+
 # Global UI state monitored via logging interceptor
 _ui_status = {
     "active_agent": "Director",
@@ -127,9 +143,18 @@ worker_manager = WorkerManager(registry)
 worker_manager.initialize_all()
 
 # Memory manager
-db_mgr = DatabaseManager("logs/caller_os_memory.db")
+db_mgr = DatabaseManager(get_exe_dir() / "logs" / "caller_os_memory.db")
 repo = SQLiteMemoryRepository(db_mgr)
 memory_mgr = MemoryManager(repo)
+
+# Plugins
+from plugins.manager import PluginManager
+plugins_dir = get_exe_dir() / "plugins"
+plugin_mgr = PluginManager(plugins_dir)
+try:
+    plugin_mgr.discover_and_load()
+except Exception as exc:
+    log.error("Failed to discover and load plugins: %s", exc)
 
 # Director
 router = HeuristicRouter()
@@ -152,9 +177,9 @@ class GoblinUIHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         # Route static files
         if self.path == "/" or self.path == "/index.html":
-            self.send_html_file(Path(__file__).parent / "frontend" / "index.html")
+            self.send_html_file(get_assets_dir() / "frontend" / "index.html")
         elif self.path == "/app.js":
-            self.send_js_file(Path(__file__).parent / "frontend" / "app.js")
+            self.send_js_file(get_assets_dir() / "frontend" / "app.js")
         elif self.path == "/api/status":
             self.send_json(_ui_status)
         elif self.path == "/api/logs":
@@ -217,7 +242,7 @@ class GoblinUIHandler(BaseHTTPRequestHandler):
                 _ui_status["current_model"] = model
                 
                 # Write to .env file
-                env_path = Path(__file__).parent / ".env"
+                env_path = get_env_path()
                 env_lines = []
                 if env_path.is_file():
                     env_lines = env_path.read_text(encoding="utf-8").splitlines()
@@ -279,7 +304,7 @@ class GoblinUIHandler(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(data).encode("utf-8"))
 
     def send_logs(self) -> None:
-        log_file = Path(__file__).parent / "logs" / "caller_os.log"
+        log_file = get_exe_dir() / "logs" / "caller_os.log"
         if not log_file.is_file():
             self.send_json([])
             return
