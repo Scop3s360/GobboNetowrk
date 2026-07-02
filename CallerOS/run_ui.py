@@ -175,6 +175,7 @@ class GoblinUIHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self) -> None:
+        log.info(f"Incoming GET request: {self.path}")
         # Route static files
         if self.path == "/" or self.path == "/index.html":
             self.send_html_file(get_assets_dir() / "frontend" / "index.html")
@@ -190,7 +191,7 @@ class GoblinUIHandler(BaseHTTPRequestHandler):
             self.send_error(404, "File not found")
 
     def do_POST(self) -> None:
-        self.do_OPTIONS()  # Handle CORS preflight headers implicitly
+        log.info(f"Incoming POST request: {self.path}")
         if self.path == "/api/chat":
             content_length = int(self.headers.get("Content-Length", 0))
             post_data = self.rfile.read(content_length)
@@ -344,14 +345,18 @@ class GoblinUIHandler(BaseHTTPRequestHandler):
 
 
 def run_server(port: int = 8080) -> None:
-    server = HTTPServer(("localhost", port), GoblinUIHandler)
-    print(f"[GoblinOS UI] API Server started at http://localhost:{port}")
     try:
+        server = HTTPServer(("127.0.0.1", port), GoblinUIHandler)
+        log.info(f"API Server started at http://127.0.0.1:{port}")
         server.serve_forever()
-    except KeyboardInterrupt:
-        pass
+    except Exception as exc:
+        log.critical(f"API Server failed to start on port {port}: {exc}")
+        raise
     finally:
-        server.server_close()
+        try:
+            server.server_close()
+        except Exception:
+            pass
         app.shutdown()
 
 
