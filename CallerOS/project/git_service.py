@@ -41,8 +41,7 @@ class GitService:
 
     def is_git_repository(self) -> bool:
         """Check if target folder is a valid git repository."""
-        # Fast path
-        if not (self.repo_dir / ".git").is_dir():
+        if not self.repo_dir.exists():
             return False
         try:
             out = self._run_git(["rev-parse", "--is-inside-work-tree"])

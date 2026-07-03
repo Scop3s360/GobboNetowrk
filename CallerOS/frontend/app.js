@@ -1052,12 +1052,24 @@ function WorkspaceScreen({ status }) {
   const [cursorColumn, setCursorColumn] = useState(1);
   const [selectedText, setSelectedText] = useState("");
 
+  // Offline fallback editor states
+  const [monacoStatus, setMonacoStatus] = useState("loading");
+  const [fallbackContent, setFallbackContent] = useState("");
+
   // Load Monaco CDN
   useEffect(() => {
     let inst = null;
+    
+    // Set a timeout to switch to fallback if loading fails or takes too long (e.g. offline)
+    const timeout = setTimeout(() => {
+      setMonacoStatus(prev => prev === "loading" ? "failed" : prev);
+    }, 2000);
+
     if (window.require) {
       window.require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.39.0/min/vs' } });
       window.require(['vs/editor/editor'], function () {
+        clearTimeout(timeout);
+        setMonacoStatus("ready");
         if (!containerRef.current) return;
         inst = window.monaco.editor.create(containerRef.current, {
           theme: 'vs-dark',
@@ -1068,9 +1080,18 @@ function WorkspaceScreen({ status }) {
           wordWrap: 'on'
         });
         setEditorInstance(inst);
+      }, function(err) {
+        console.error("Monaco load error, using fallback editor:", err);
+        clearTimeout(timeout);
+        setMonacoStatus("failed");
       });
+    } else {
+      clearTimeout(timeout);
+      setMonacoStatus("failed");
     }
+    
     return () => {
+      clearTimeout(timeout);
       if (inst) {
         inst.dispose();
       }
@@ -1156,9 +1177,9 @@ function WorkspaceScreen({ status }) {
     }
   }, [sourceDir]);
 
-  // Handle Tab Switch / File loading in Monaco
+  // Handle Tab Switch / File loading in Monaco & Fallback Content
   useEffect(() => {
-    if (!editorInstance || !activeTab) return;
+    if (!activeTab) return;
     
     fetch(`/api/workspace/file?path=${encodeURIComponent(activeTab)}`)
       .then(r => r.json())
@@ -1168,47 +1189,51 @@ function WorkspaceScreen({ status }) {
           return;
         }
         
-        const ext = activeTab.split('.').pop().toLowerCase();
-        let lang = 'plaintext';
-        if (ext === 'py') lang = 'python';
-        else if (ext === 'cs') lang = 'csharp';
-        else if (ext === 'js') lang = 'javascript';
-        else if (ext === 'ts') lang = 'typescript';
-        else if (ext === 'json') lang = 'json';
-        else if (ext === 'md') lang = 'markdown';
-        else if (ext === 'yaml' || ext === 'yml') lang = 'yaml';
+        setFallbackContent(data.content);
         
-        const uri = window.monaco.Uri.file(activeTab);
-        let model = window.monaco.editor.getModel(uri);
-        if (!model) {
-          model = window.monaco.editor.createModel(data.content, lang, uri);
-        } else {
-          if (!dirtyTabs.has(activeTab)) {
-            model.setValue(data.content);
+        if (monacoStatus === "ready" && editorInstance) {
+          const ext = activeTab.split('.').pop().toLowerCase();
+          let lang = 'plaintext';
+          if (ext === 'py') lang = 'python';
+          else if (ext === 'cs') lang = 'csharp';
+          else if (ext === 'js') lang = 'javascript';
+          else if (ext === 'ts') lang = 'typescript';
+          else if (ext === 'json') lang = 'json';
+          else if (ext === 'md') lang = 'markdown';
+          else if (ext === 'yaml' || ext === 'yml') lang = 'yaml';
+          
+          const uri = window.monaco.Uri.file(activeTab);
+          let model = window.monaco.editor.getModel(uri);
+          if (!model) {
+            model = window.monaco.editor.createModel(data.content, lang, uri);
+          } else {
+            if (!dirtyTabs.has(activeTab)) {
+              model.setValue(data.content);
+            }
           }
-        }
-        
-        editorInstance.setModel(model);
-        
-        editorInstance.onDidChangeCursorPosition(e => {
-          setCursorLine(e.position.lineNumber);
-          setCursorColumn(e.position.column);
-        });
-        
-        editorInstance.onDidChangeCursorSelection(e => {
-          const selText = editorInstance.getModel().getValueInRange(e.selection);
-          setSelectedText(selText);
-        });
-        
-        model.onDidChangeContent(() => {
-          setDirtyTabs(prev => {
-            const next = new Set(prev);
-            next.add(activeTab);
-            return next;
+          
+          editorInstance.setModel(model);
+          
+          editorInstance.onDidChangeCursorPosition(e => {
+            setCursorLine(e.position.lineNumber);
+            setCursorColumn(e.position.column);
           });
-        });
+          
+          editorInstance.onDidChangeCursorSelection(e => {
+            const selText = editorInstance.getModel().getValueInRange(e.selection);
+            setSelectedText(selText);
+          });
+          
+          model.onDidChangeContent(() => {
+            setDirtyTabs(prev => {
+              const next = new Set(prev);
+              next.add(activeTab);
+              return next;
+            });
+          });
+        }
       });
-  }, [activeTab, editorInstance]);
+  }, [activeTab, editorInstance, monacoStatus]);
 
   // Ctrl+S Command registration
   useEffect(() => {
@@ -1226,6 +1251,29 @@ function WorkspaceScreen({ status }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: activeTab, content })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDirtyTabs(prev => {
+          const next = new Set(prev);
+          next.delete(activeTab);
+          return next;
+        });
+        fetchGitStatus();
+      } else {
+        alert("Failed to save: " + data.error);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+  const handleSaveFallback = async () => {
+    if (!activeTab) return;
+    try {
+      const res = await fetch('/api/workspace/file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: activeTab, content: fallbackContent })
       });
       const data = await res.json();
       if (data.success) {
@@ -1755,7 +1803,58 @@ function WorkspaceScreen({ status }) {
         </div>
 
         <div className="editor-container">
-          <div ref={containerRef} className="monaco-editor-instance"></div>
+          {monacoStatus === "ready" ? (
+            <div ref={containerRef} className="monaco-editor-instance"></div>
+          ) : activeTab ? (
+            <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
+              <div style={{
+                padding: "6px 16px",
+                backgroundColor: "#1a0e0e",
+                color: "#ffc107",
+                fontSize: "11px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                borderBottom: "1px solid var(--border)"
+              }}>
+                <span>Offline Fallback Editor (Monaco CDN unreachable)</span>
+                <button onClick={handleSaveFallback} className="btn-primary" style={{ padding: "2px 8px", fontSize: "11px" }}>
+                  Save (Ctrl+S)
+                </button>
+              </div>
+              <textarea
+                className="fallback-textarea"
+                value={fallbackContent}
+                onChange={e => {
+                  setFallbackContent(e.target.value);
+                  setDirtyTabs(prev => {
+                    const next = new Set(prev);
+                    next.add(activeTab);
+                    return next;
+                  });
+                }}
+                style={{
+                  flex: 1,
+                  backgroundColor: "#0B0E14",
+                  color: "#A9B2C3",
+                  border: "none",
+                  padding: "16px",
+                  fontFamily: "Consolas, Courier New, monospace",
+                  fontSize: "13px",
+                  lineHeight: "1.6",
+                  resize: "none",
+                  outline: "none"
+                }}
+                onKeyDown={e => {
+                  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                    e.preventDefault();
+                    handleSaveFallback();
+                  }
+                }}
+              />
+            </div>
+          ) : null}
+          
           {!activeTab && (
             <div style={{
               display: "flex",
@@ -1864,7 +1963,7 @@ function WorkspaceScreen({ status }) {
                   Close
                 </button>
                 <button className="btn-danger" onClick={() => handleRejectPatch(previewPatch.target_file)}>
-                  Reject
+                  Reject Patch
                 </button>
                 <button className="btn-primary" onClick={() => handleApprovePatch(previewPatch.target_file)}>
                   Approve and Apply
@@ -1872,7 +1971,28 @@ function WorkspaceScreen({ status }) {
               </div>
             </div>
             <div className="diff-editor-wrapper">
-              <div ref={diffContainerRef} style={{ width: "100%", height: "100%", position: "absolute" }}></div>
+              {monacoStatus === "ready" ? (
+                <div ref={diffContainerRef} style={{ width: "100%", height: "100%", position: "absolute" }}></div>
+              ) : (
+                <div style={{ display: "flex", width: "100%", height: "100%", backgroundColor: "#080A0F" }}>
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", borderRight: "1px solid var(--border)" }}>
+                    <div style={{ padding: "8px 16px", backgroundColor: "#3a1d1d", fontSize: "12px", color: "#ffa3a3", fontWeight: 600 }}>Original File</div>
+                    <textarea 
+                      readOnly 
+                      value={previewPatch.original_content}
+                      style={{ flex: 1, backgroundColor: "#140e0e", color: "#e88b8b", border: "none", padding: "12px", fontFamily: "monospace", resize: "none", outline: "none" }}
+                    />
+                  </div>
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+                    <div style={{ padding: "8px 16px", backgroundColor: "#1e3a1d", fontSize: "12px", color: "#a3ffa3", fontWeight: 600 }}>Proposed Changes</div>
+                    <textarea 
+                      readOnly 
+                      value={previewPatch.patched_content}
+                      style={{ flex: 1, backgroundColor: "#0f140e", color: "#8be88b", border: "none", padding: "12px", fontFamily: "monospace", resize: "none", outline: "none" }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

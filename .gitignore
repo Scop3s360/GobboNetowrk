@@ -60,3 +60,5 @@ venv.bak/
 logs/
 .pytest_cache/
 node_modules/
+workspaces/
+CallerOS/workspaces/

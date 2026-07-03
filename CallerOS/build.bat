@@ -26,7 +26,7 @@ if %errorlevel% neq 0 (
 
 :: Package CallerOS using PyInstaller (OneFile, NoConsole)
 echo [4/6] Packaging application to standalone executable...
-pyinstaller --clean --onefile --noconsole --name=CallerOS --icon=app_icon.ico --add-data "frontend;frontend" --collect-all pythonnet --collect-all pywebview run_app.py
+pyinstaller --clean --onefile --noconsole --name=CallerOS --icon=app_icon.ico --add-data "frontend;frontend" --additional-hooks-dir pyinstaller_hooks --collect-all pythonnet --collect-all pywebview run_app.py
 if %errorlevel% neq 0 (
     echo [ERROR] PyInstaller packaging failed!
     exit /b 1

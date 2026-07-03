@@ -99,3 +99,27 @@ pytest
 - **API Key not working**: Set your API key in the UI settings screen, or ensure the environment variable `OPENAI_API_KEY` is exported. Masked values (like `***` or `sk-123...cdef`) will be automatically ignored when updating settings to prevent overwriting active credentials.
 - **WebView2 not loading**: On older Windows systems, WebView2 Runtime might not be installed. Modern Windows 10/11 comes with it pre-installed. If missing, it can be downloaded from Microsoft's site.
 
+---
+
+## 7. Project Workspace
+
+GoblinOS/CallerOS features a complete Project Workspace system that isolates different codebases, design specifications, and topics.
+
+- **Isolated Database & Files:** Each project has its own workspace directory (`workspaces/<project_id>/`) containing its own SQLite database (`workspace.db`), notes, and imported documents.
+- **Document Importing & Auto-Chunking:** You can import `.md` and `.txt` documents into the active project. Markdown headers are parsed automatically to create context-aware section chunks in the project's memory.
+- **Knowledge Index:** Uses SQLite's native `FTS5` virtual table indexing for rapid keyword and context relevance matching.
+- **Context Injection:** When a project is active, the Director automatically queries the Context Engine to extract and rank relevant context snippets from the active workspace before worker execution, keeping specialists project-agnostic.
+
+---
+
+## 8. Integrated Development Workspace (IDE)
+
+CallerOS includes a full, premium Integrated Development Workspace (IDE) featuring a side-by-side Monaco code editor, real-time Git status tracking, and a staged patch preview system.
+
+- **Monaco Code Editor & Tabs:** Multi-tab file explorer that loads Monaco Editor directly from CDN. Standard keyboard shortcuts like `Ctrl+S` are hooked to write code directly back to the workspace.
+- **Symbol Indexer:** An automatic indexing service (`project/index_service.py`) scans code structures using Python's native `ast` module and lexical regular expressions for C#. Extracted symbols (Classes, Methods, Imports) are saved in the isolated database and queried by the `ContextEngine` during normal chats.
+- **Git Service:** Provides an isolated wrapper to verify repository presence, query branch/status updates, stage/unstage files, and perform commits.
+- **Patch Approval System:** AI suggestions are generated as staged patches (`project/patch_system.py`) to prevent unauthorized modifications. The user can open a Monaco Diff Editor modal to inspect changes side-by-side before approving or rejecting.
+- **Backups & Undo:** File operations (create, rename, delete, modify) are protected by a localized trash backup subsystem under `.trash/`, allowing instant rollbacks of the last operation.
+
+
