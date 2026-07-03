@@ -25,7 +25,7 @@ import signal
 import sys
 from enum import Enum, auto
 
-from config.settings import Settings
+from config.settings import Settings, get_settings
 from core.exceptions import HealthCheckError, StartupError
 from core.health import HealthStatus, HealthValidator
 from core.lifecycle import LifecycleManager
@@ -193,7 +193,7 @@ class Application:
 
     def _load_configuration(self) -> None:
         log.debug("Loading configuration...")
-        self._settings = Settings.from_env()
+        self._settings = get_settings()
         # Logging not yet active — cannot log settings here.
 
     def _initialise_logging(self) -> None:

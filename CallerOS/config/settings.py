@@ -42,13 +42,9 @@ def get_exe_dir() -> Path:
     return Path(__file__).parent.parent
 
 # Load .env file if present (no error if missing — environment vars win).
-try:
+if "PYTEST_CURRENT_TEST" not in os.environ:
     from dotenv import load_dotenv  # type: ignore
-
     load_dotenv(dotenv_path=get_base_dir() / ".env", override=True)
-except ImportError:
-    # python-dotenv is optional.  Without it, only real env vars are used.
-    pass
 
 
 # ---------------------------------------------------------------------------
@@ -69,6 +65,8 @@ class Settings:
         log_level:   Python logging level name (e.g. "INFO").
         log_dir:     Directory where log files are written.
         environment: Deployment environment tag (development / production).
+        openai_api_key: OpenAI secret API key.
+        openai_model:   OpenAI model name.
     """
 
     app_name: str
@@ -76,6 +74,8 @@ class Settings:
     log_level: str
     log_dir: Path
     environment: str
+    openai_api_key: str = ""
+    openai_model: str = "gpt-4o-mini"
 
     # ------------------------------------------------------------------
     # Factory — build from environment variables.
@@ -115,13 +115,49 @@ class Settings:
         if not log_dir.is_absolute():
             log_dir = (get_exe_dir() / log_dir).resolve()
 
+        # Load OpenAI settings from environment
+        openai_api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+        if openai_api_key in ("sk-your-key-here", "your-actual-api-key-here"):
+            openai_api_key = ""
+        openai_model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini").strip()
+
         return cls(
             app_name=app_name,
             version=version,
             log_level=log_level,
             log_dir=log_dir,
             environment=environment,
+            openai_api_key=openai_api_key,
+            openai_model=openai_model,
         )
+
+
+_current_settings: Settings | None = None
+
+
+def get_settings() -> Settings:
+    """
+    Get the single authoritative application settings instance.
+    """
+    global _current_settings
+    if "PYTEST_CURRENT_TEST" in os.environ:
+        return Settings.from_env()
+    if _current_settings is None:
+        _current_settings = Settings.from_env()
+    return _current_settings
+
+
+def reload_settings() -> Settings:
+    """
+    Reload settings from the environment/.env file.
+    """
+    global _current_settings
+    # Re-trigger dotenv load to pick up file changes
+    if "PYTEST_CURRENT_TEST" not in os.environ:
+        from dotenv import load_dotenv  # type: ignore
+        load_dotenv(dotenv_path=get_base_dir() / ".env", override=True)
+    _current_settings = Settings.from_env()
+    return _current_settings
 
 
 # ---------------------------------------------------------------------------

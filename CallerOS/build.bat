@@ -1,10 +1,12 @@
 @echo off
+cd /d "%~dp0"
 echo ===================================================
 echo   CallerOS - Native Windows Desktop Builder (V1.0.1)
 echo ===================================================
 
 :: Clean previous builds
-echo [1/6] Cleaning previous build artifacts...
+echo [1/6] Terminating running instances and cleaning previous build artifacts...
+taskkill /F /IM CallerOS.exe >nul 2>&1
 if exist build rmdir /s /q build
 if exist dist rmdir /s /q dist
 if exist Release rmdir /s /q Release
@@ -38,7 +40,11 @@ mkdir Release\plugins
 mkdir Release\logs
 mkdir Release\config
 
-copy dist\CallerOS.exe Release\CallerOS.exe
+copy /Y dist\CallerOS.exe Release\CallerOS.exe
+if errorlevel 1 (
+    echo [ERROR] Failed to copy CallerOS.exe to Release folder!
+    exit /b 1
+)
 copy .env.example Release\config\.env.example
 copy ..\README.md Release\docs\README.md
 

@@ -162,3 +162,11 @@ def make_request():
         return WorkerRequest(worker_id=worker_id, payload=payload)
 
     return _make
+
+
+@pytest.fixture(autouse=True)
+def reset_settings_global():
+    """Reset the global configuration cache before every test run."""
+    from config.settings import reload_settings
+    reload_settings()
+    yield

@@ -21,8 +21,22 @@ log = logging.getLogger(__name__)
 # Key: version (int), Value: list of SQL statements.
 MIGRATIONS: dict[int, list[str]] = {
     1: INITIAL_SCHEMA,
-    # Future migrations can be registered here:
-    # 2: [ "ALTER TABLE memories ADD COLUMN metadata TEXT;" ]
+    2: [
+        """
+        CREATE TABLE IF NOT EXISTS projects (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT,
+            type TEXT NOT NULL,
+            tags TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            last_opened_at TEXT NOT NULL
+        );
+        """
+    ],
+    3: [
+        "ALTER TABLE projects ADD COLUMN source_dir TEXT;"
+    ]
 }
 
 LATEST_VERSION = max(MIGRATIONS.keys())

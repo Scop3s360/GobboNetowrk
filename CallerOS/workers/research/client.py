@@ -91,14 +91,13 @@ class OpenAIClient:
     Production AI client backed by the OpenAI Responses API (chat completions).
 
     Args:
-        api_key: OpenAI secret key.  Defaults to OPENAI_API_KEY env var.
-        model:   Model identifier.  Defaults to OPENAI_MODEL env var or
+        api_key: OpenAI secret key.  Defaults to OPENAI_API_KEY from settings.
+        model:   Model identifier.  Defaults to OPENAI_MODEL from settings or
                  ``gpt-4o-mini``.
         timeout: Request timeout in seconds.  Defaults to 60.
 
     Raises:
-        ConfigurationError: If the ``openai`` package is not installed, or if
-                            the API key cannot be resolved.
+        ConfigurationError: If the ``openai`` package is not installed.
     """
 
     def __init__(
@@ -115,20 +114,11 @@ class OpenAIClient:
                 "Install it with: pip install openai"
             ) from exc
 
-        resolved_key = api_key or os.environ.get("OPENAI_API_KEY", "")
-        if resolved_key in ("sk-your-key-here", "your-actual-api-key-here"):
-            resolved_key = ""
-        if not resolved_key:
-            raise ConfigurationError(
-                "OpenAI API key is not set. "
-                "Set the OPENAI_API_KEY environment variable."
-            )
-
-        self._model = model or os.environ.get("OPENAI_MODEL", _DEFAULT_MODEL)
+        self._api_key_override = api_key
+        self._model_override = model
         self._timeout = timeout
-        # The openai client is stored as _client; injected via env vars above.
-        self._client = openai.OpenAI(api_key=resolved_key, timeout=timeout)
-        log.info("OpenAIClient initialised: model=%s", self._model)
+        self._cached_client = None
+        self._cached_key = None
 
     def complete(self, system_prompt: str, user_message: str) -> str:
         """
@@ -144,18 +134,36 @@ class OpenAIClient:
         Raises:
             AIClientError: On any API error (network, auth, rate-limit, etc.).
         """
-        log.debug("OpenAIClient: sending request to model=%s", self._model)
+        import openai
+        from config.settings import get_settings
+
+        settings = get_settings()
+        api_key = self._api_key_override or settings.openai_api_key
+        model = self._model_override or settings.openai_model or _DEFAULT_MODEL
+
+        log.info("OpenAIClient: Creating request for model=%s", model)
+
+        if not api_key:
+            log.warning("OpenAIClient: API key is missing")
+            raise AIClientError("OpenAI API key is missing. Please set it in the Settings screen.")
+
+        if self._cached_client is None or self._cached_key != api_key:
+            self._cached_client = openai.OpenAI(api_key=api_key, timeout=self._timeout)
+            self._cached_key = api_key
+
         try:
-            response = self._client.chat.completions.create(
-                model=self._model,
+            log.info("OpenAIClient: Sending HTTP request to OpenAI API...")
+            response = self._cached_client.chat.completions.create(
+                model=model,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_message},
                 ],
             )
-            text = response.choices[0].message.content or ""
-            log.debug("OpenAIClient: received response  length=%d chars", len(text))
-            return text
+            log.info("OpenAIClient: HTTP response received successfully")
+            content = response.choices[0].message.content or ""
+            log.info("OpenAIClient: Parsed response content length=%d chars", len(content))
+            return content
         except Exception as exc:
             log.error("OpenAIClient: request failed: %s", exc)
-            raise AIClientError(f"OpenAI request failed: {exc}") from exc
+            raise AIClientError(str(exc))
