@@ -35,10 +35,31 @@ from workers.research.worker import ResearchWorker
 
 log = logging.getLogger(__name__)
 
-def get_exe_dir() -> Path:
+def get_user_data_dir() -> Path:
+    if "PYTEST_CURRENT_TEST" in os.environ:
+        test_dir = Path(__file__).parent / "workspaces" / "test_userdata"
+        test_dir.mkdir(parents=True, exist_ok=True)
+        return test_dir
+        
+    if sys.platform == "win32":
+        local_appdata = os.environ.get("LOCALAPPDATA")
+        if local_appdata:
+            path = Path(local_appdata) / "CallerOS"
+        else:
+            path = Path.home() / "AppData" / "Local" / "CallerOS"
+    else:
+        path = Path.home() / ".local" / "share" / "CallerOS"
+        
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+def get_actual_exe_dir() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys.executable).parent
     return Path(__file__).parent
+
+def get_exe_dir() -> Path:
+    return get_user_data_dir()
 
 def get_assets_dir() -> Path:
     if getattr(sys, "frozen", False):
@@ -46,10 +67,7 @@ def get_assets_dir() -> Path:
     return Path(__file__).parent
 
 def get_env_path() -> Path:
-    exe_dir = get_exe_dir()
-    if (exe_dir / "config").is_dir():
-        return exe_dir / "config" / ".env"
-    return exe_dir / ".env"
+    return get_user_data_dir() / ".env"
 
 # Global UI state monitored via logging interceptor
 _ui_status = {
@@ -220,7 +238,7 @@ context_engine.register_provider(MemoryContextProvider(memory_mgr))
 
 # Plugins
 from plugins.manager import PluginManager
-plugins_dir = get_exe_dir() / "plugins"
+plugins_dir = get_actual_exe_dir() / "plugins"
 plugin_mgr = PluginManager(plugins_dir)
 try:
     plugin_mgr.discover_and_load()

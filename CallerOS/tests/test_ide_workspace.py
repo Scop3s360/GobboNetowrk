@@ -225,3 +225,42 @@ class TestContextEngineSymbolRanking:
         assert "PlayerController" in ctx
         assert "Respawn" in ctx
         assert "Code Symbol" in ctx
+
+
+def test_user_data_migration_and_persistent_paths(tmp_path):
+    from config.settings import get_user_data_dir, migrate_user_data
+    
+    # 1. Verify get_user_data_dir returns a path
+    data_dir = get_user_data_dir()
+    assert data_dir is not None
+    assert isinstance(data_dir, Path)
+    
+    # 2. Mock old directory layout
+    old_base = tmp_path / "old_release"
+    new_base = tmp_path / "new_userdata"
+    
+    config_dir = old_base / "config"
+    config_dir.mkdir(parents=True)
+    old_env = config_dir / ".env"
+    old_env.write_text("OPENAI_API_KEY=sk-test-key-1234", encoding="utf-8")
+    
+    logs_dir = old_base / "logs"
+    logs_dir.mkdir(parents=True)
+    old_db = logs_dir / "caller_os_memory.db"
+    old_db.write_text("dummy database content", encoding="utf-8")
+    
+    ws_dir = old_base / "workspaces"
+    ws_dir.mkdir(parents=True)
+    some_doc = ws_dir / "Gravehold" / "colony_notes.txt"
+    some_doc.parent.mkdir(parents=True, exist_ok=True)
+    some_doc.write_text("instability rules summary", encoding="utf-8")
+    
+    # Run migration
+    migrate_user_data(old_base, new_base)
+    
+    # Verify new layout contains copies
+    assert (new_base / ".env").is_file()
+    assert (new_base / ".env").read_text(encoding="utf-8") == "OPENAI_API_KEY=sk-test-key-1234"
+    assert (new_base / "logs" / "caller_os_memory.db").is_file()
+    assert (new_base / "workspaces" / "Gravehold" / "colony_notes.txt").is_file()
+    assert (new_base / "workspaces" / "Gravehold" / "colony_notes.txt").read_text(encoding="utf-8") == "instability rules summary"

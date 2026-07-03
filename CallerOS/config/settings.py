@@ -24,22 +24,103 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from core.exceptions import ConfigurationError
 
-def get_base_dir() -> Path:
-    if getattr(sys, 'frozen', False):
-        # Package root containing CallerOS.exe
-        # E.g. Release/
-        # Check if config directory exists around the executable
-        # E.g. Release/config/
-        exe_dir = Path(sys.executable).parent
-        if (exe_dir / "config").is_dir():
-            return exe_dir / "config"
-        return exe_dir
-    return Path(__file__).parent.parent
+def get_user_data_dir() -> Path:
+    if "PYTEST_CURRENT_TEST" in os.environ:
+        test_dir = Path(__file__).parent.parent / "workspaces" / "test_userdata"
+        test_dir.mkdir(parents=True, exist_ok=True)
+        return test_dir
+        
+    if sys.platform == "win32":
+        local_appdata = os.environ.get("LOCALAPPDATA")
+        if local_appdata:
+            path = Path(local_appdata) / "CallerOS"
+        else:
+            path = Path.home() / "AppData" / "Local" / "CallerOS"
+    else:
+        path = Path.home() / ".local" / "share" / "CallerOS"
+        
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
-def get_exe_dir() -> Path:
-    if getattr(sys, 'frozen', False):
+def get_actual_exe_dir() -> Path:
+    if getattr(sys, "frozen", False):
         return Path(sys.executable).parent
     return Path(__file__).parent.parent
+
+def migrate_user_data(old_base: Path, new_base: Path) -> None:
+    import shutil
+    import logging
+    
+    # Simple console logger setup if main logging isn't fully ready yet
+    m_log = logging.getLogger("CallerOS.migration")
+    
+    # 1. Migrate .env file
+    old_env = old_base / "config" / ".env"
+    if not old_env.is_file():
+        old_env = old_base / ".env"
+        
+    new_env = new_base / ".env"
+    if old_env.is_file() and not new_env.is_file():
+        try:
+            new_base.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(old_env, new_env)
+            m_log.info(f"Migration: Copied configuration from {old_env} to {new_env}")
+        except Exception as e:
+            m_log.error(f"Migration: Failed to copy .env: {e}")
+            
+    # 2. Migrate database and logs
+    old_logs_dir = old_base / "logs"
+    new_logs_dir = new_base / "logs"
+    if old_logs_dir.is_dir():
+        new_logs_dir.mkdir(parents=True, exist_ok=True)
+        
+        old_db = old_logs_dir / "caller_os_memory.db"
+        new_db = new_logs_dir / "caller_os_memory.db"
+        if old_db.is_file() and not new_db.is_file():
+            try:
+                shutil.copy2(old_db, new_db)
+                m_log.info(f"Migration: Copied database from {old_db} to {new_db}")
+            except Exception as e:
+                m_log.error(f"Migration: Failed to copy database: {e}")
+                
+        old_log = old_logs_dir / "caller_os.log"
+        new_log = new_logs_dir / "caller_os.log"
+        if old_log.is_file() and not new_log.is_file():
+            try:
+                shutil.copy2(old_log, new_log)
+                m_log.info(f"Migration: Copied log file from {old_log} to {new_log}")
+            except Exception as e:
+                m_log.error(f"Migration: Failed to copy log: {e}")
+
+    # 3. Migrate workspaces directory
+    old_ws_dir = old_base / "workspaces"
+    new_ws_dir = new_base / "workspaces"
+    if old_ws_dir.is_dir():
+        def copy_missing_recursive(src: Path, dst: Path):
+            if not src.exists():
+                return
+            if src.is_file():
+                if not dst.exists():
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(src, dst)
+                    m_log.info(f"Migration: Copied workspace file {src.name}")
+            elif src.is_dir():
+                for item in src.iterdir():
+                    copy_missing_recursive(item, dst / item.name)
+        try:
+            copy_missing_recursive(old_ws_dir, new_ws_dir)
+        except Exception as e:
+            m_log.error(f"Migration: Failed to copy workspaces: {e}")
+
+# Run user data migration immediately on module import
+if "PYTEST_CURRENT_TEST" not in os.environ:
+    migrate_user_data(get_actual_exe_dir(), get_user_data_dir())
+
+def get_base_dir() -> Path:
+    return get_user_data_dir()
+
+def get_exe_dir() -> Path:
+    return get_user_data_dir()
 
 # Load .env file if present (no error if missing — environment vars win).
 if "PYTEST_CURRENT_TEST" not in os.environ:
