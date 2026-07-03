@@ -329,8 +329,16 @@ function App() {
       {/* Main Content Area */}
       <main className="main-panel">
         {activeTab === "chat" && <ChatScreen status={status} />}
-        {activeTab === "workspace" && <WorkspaceScreen status={status} />}
-        {activeTab === "projects" && <ProjectsScreen />}
+        {activeTab === "workspace" && (
+          <ErrorBoundary>
+            <WorkspaceScreen status={status} />
+          </ErrorBoundary>
+        )}
+        {activeTab === "projects" && (
+          <ErrorBoundary>
+            <ProjectsScreen />
+          </ErrorBoundary>
+        )}
         {activeTab === "logs" && <LogsScreen />}
         {activeTab === "settings" && <SettingsScreen settings={settings} setSettings={setSettings} />}
       </main>
@@ -678,6 +686,69 @@ function SettingsScreen({ settings, setSettings }) {
 }
 
 // ---------------------------------------------------------------------------
+// Error Boundary Component
+// ---------------------------------------------------------------------------
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error("ErrorBoundary caught an error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          padding: "40px",
+          backgroundColor: "#0d1117",
+          color: "#f0f6fc",
+          fontFamily: "sans-serif",
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          alignItems: "center",
+          gap: "16px"
+        }}>
+          <h2 style={{ color: "#f85149" }}>Projects View Render Failure</h2>
+          <p style={{ color: "#8b949e", fontSize: "14px", maxWidth: "600px", textAlign: "center" }}>
+            An unexpected error occurred while loading this view. The error has been logged to the console.
+          </p>
+          <pre style={{
+            backgroundColor: "#161b22",
+            padding: "16px",
+            borderRadius: "6px",
+            border: "1px solid #30363d",
+            fontSize: "12px",
+            fontFamily: "monospace",
+            maxWidth: "80%",
+            overflowX: "auto"
+          }}>
+            {this.state.error ? this.state.error.toString() : "Unknown error"}
+          </pre>
+          <button 
+            className="btn-primary" 
+            onClick={() => this.setState({ hasError: false, error: null })}
+            style={{ padding: "8px 16px" }}
+          >
+            Retry
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Projects Screen Component
 // ---------------------------------------------------------------------------
 function ProjectsScreen() {
@@ -697,7 +768,13 @@ function ProjectsScreen() {
       const res = await fetch("/api/projects");
       if (res.ok) {
         const data = await res.json();
-        setProjects(data);
+        if (Array.isArray(data)) {
+          setProjects(data);
+        } else {
+          console.error("Projects API error:", data.error || data);
+          setProjects([]);
+          setError(data.error || "Failed to load projects");
+        }
       }
     } catch (err) {
       console.error(err);
@@ -715,16 +792,26 @@ function ProjectsScreen() {
         const projRes = await fetch("/api/projects");
         if (projRes.ok) {
           const projs = await projRes.json();
-          const activeProj = projs.find(p => p.name === activeName);
-          setActiveProject(activeProj || null);
-          
-          if (activeProj) {
-            const docsRes = await fetch("/api/projects/documents");
-            if (docsRes.ok) {
-              const docs = await docsRes.json();
-              setDocuments(docs);
+          if (Array.isArray(projs)) {
+            const activeProj = projs.find(p => p.name === activeName);
+            setActiveProject(activeProj || null);
+            
+            if (activeProj) {
+              const docsRes = await fetch("/api/projects/documents");
+              if (docsRes.ok) {
+                const docs = await docsRes.json();
+                if (Array.isArray(docs)) {
+                  setDocuments(docs);
+                } else {
+                  console.error("Documents API error:", docs.error || docs);
+                  setDocuments([]);
+                }
+              }
+            } else {
+              setDocuments([]);
             }
           } else {
+            setActiveProject(null);
             setDocuments([]);
           }
         }
