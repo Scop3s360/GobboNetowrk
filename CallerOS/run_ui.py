@@ -890,6 +890,9 @@ class GoblinUIHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
         self.end_headers()
         self.wfile.write(path.read_bytes())
 
@@ -900,6 +903,9 @@ class GoblinUIHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "application/javascript; charset=utf-8")
         self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
         self.end_headers()
         self.wfile.write(path.read_bytes())
 
