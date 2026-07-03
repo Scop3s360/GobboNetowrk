@@ -246,6 +246,19 @@ function App() {
     tool_activity: "NONE"
   });
 
+  // Chat persistent state structured for future multiple conversation support
+  const [conversations, setConversations] = useState({
+    "default": {
+      messages: [
+        { role: "assistant", content: "System booted. GoblinOS is ready to receive requests." }
+      ],
+      input: "",
+      loading: false,
+      backendError: ""
+    }
+  });
+  const [activeConversationId, setActiveConversationId] = useState("default");
+
   // Settings states
   const [settings, setSettings] = useState({
     api_key: "",
@@ -328,19 +341,59 @@ function App() {
 
       {/* Main Content Area */}
       <main className="main-panel">
-        {activeTab === "chat" && <ChatScreen status={status} />}
-        {activeTab === "workspace" && (
+        <div style={{ display: activeTab === "chat" ? "block" : "none", height: "100%" }}>
+          <ChatScreen 
+            status={status}
+            messages={conversations.default.messages}
+            setMessages={(msgs) => setConversations(prev => ({
+              ...prev,
+              default: {
+                ...prev.default,
+                messages: typeof msgs === "function" ? msgs(prev.default.messages) : msgs
+              }
+            }))}
+            input={conversations.default.input}
+            setInput={(inp) => setConversations(prev => ({
+              ...prev,
+              default: {
+                ...prev.default,
+                input: inp
+              }
+            }))}
+            loading={conversations.default.loading}
+            setLoading={(ld) => setConversations(prev => ({
+              ...prev,
+              default: {
+                ...prev.default,
+                loading: ld
+              }
+            }))}
+            backendError={conversations.default.backendError}
+            setBackendError={(err) => setConversations(prev => ({
+              ...prev,
+              default: {
+                ...prev.default,
+                backendError: err
+              }
+            }))}
+          />
+        </div>
+        <div style={{ display: activeTab === "workspace" ? "block" : "none", height: "100%" }}>
           <ErrorBoundary>
             <WorkspaceScreen status={status} />
           </ErrorBoundary>
-        )}
-        {activeTab === "projects" && (
+        </div>
+        <div style={{ display: activeTab === "projects" ? "block" : "none", height: "100%" }}>
           <ErrorBoundary>
             <ProjectsScreen />
           </ErrorBoundary>
-        )}
-        {activeTab === "logs" && <LogsScreen />}
-        {activeTab === "settings" && <SettingsScreen settings={settings} setSettings={setSettings} />}
+        </div>
+        <div style={{ display: activeTab === "logs" ? "block" : "none", height: "100%" }}>
+          <LogsScreen />
+        </div>
+        <div style={{ display: activeTab === "settings" ? "block" : "none", height: "100%" }}>
+          <SettingsScreen settings={settings} setSettings={setSettings} />
+        </div>
       </main>
 
       {/* Status Bar */}
@@ -372,13 +425,7 @@ function App() {
 // ---------------------------------------------------------------------------
 // Chat Screen Component
 // ---------------------------------------------------------------------------
-function ChatScreen({ status }) {
-  const [messages, setMessages] = useState([
-    { role: "assistant", content: "System booted. GoblinOS is ready to receive requests." }
-  ]);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [backendError, setBackendError] = useState("");
+function ChatScreen({ status, messages, setMessages, input, setInput, loading, setLoading, backendError, setBackendError }) {
   const messagesEndRef = useRef(null);
 
   // Auto scroll to bottom
@@ -430,15 +477,33 @@ function ChatScreen({ status }) {
     <div className="chat-container">
       <div className="chat-header">
         <h2>Orchestrator Workspace</h2>
-        {status.workflow_status === "RUNNING" && (
-          <div className="workflow-steps-progress">
-            <span className="step active">Analyzing Query</span>
-            <span className="step-arrow">→</span>
-            <span className="step active">Executing Worker ({status.active_agent})</span>
-            <span className="step-arrow">→</span>
-            <span className="step">Writing Logs</span>
-          </div>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          {status.workflow_status === "RUNNING" && (
+            <div className="workflow-steps-progress">
+              <span className="step active">Analyzing Query</span>
+              <span className="step-arrow">→</span>
+              <span className="step active">Executing Worker ({status.active_agent})</span>
+              <span className="step-arrow">→</span>
+              <span className="step">Writing Logs</span>
+            </div>
+          )}
+          <button 
+            className="copy-btn" 
+            onClick={() => {
+              if (confirm("Are you sure you want to clear this conversation?")) {
+                setMessages([
+                  { role: "assistant", content: "System booted. GoblinOS is ready to receive requests." }
+                ]);
+                setBackendError("");
+              }
+            }}
+            title="Clear Conversation"
+            style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", padding: "4px 8px" }}
+          >
+            <i className="lucide-trash-2" style={{ width: 12, height: 12 }}></i>
+            <span>Clear Chat</span>
+          </button>
+        </div>
       </div>
 
       <div className="messages-area">
